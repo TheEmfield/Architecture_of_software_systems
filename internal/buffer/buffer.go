@@ -62,6 +62,7 @@ func (b *Buffer) FindHighestPriorityApp() (*source.Application, int) {
 		if app != nil {
 			if a == nil {
 				a = app
+				resId = id
 			} else {
 				if app.SourceID < a.SourceID {
 					a = app
