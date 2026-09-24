@@ -9,10 +9,10 @@ import (
 
 type StagingDispatcher struct {
 	Buffer  *buffer.Buffer
-	Devices map[int]*device.Device
+	Devices []*device.Device
 }
 
-func NewStagingDispatcher(buffer *buffer.Buffer, devices map[int]*device.Device) *StagingDispatcher {
+func NewStagingDispatcher(buffer *buffer.Buffer, devices []*device.Device) *StagingDispatcher {
 	return &StagingDispatcher{
 		Buffer:  buffer,
 		Devices: devices,

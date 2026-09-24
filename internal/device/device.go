@@ -8,24 +8,24 @@ import (
 )
 
 type Device struct {
-	ID              int
-	MeanServiceTime float64
-	IsBusy          bool
-	CurrentApp      *source.Application
-	ServiceEndTime  float64
-	TotalBusyTime   float64
-	ServedCount     int
+	ID             int
+	Lambda         float64
+	IsBusy         bool
+	CurrentApp     *source.Application
+	ServiceEndTime float64
+	TotalBusyTime  float64
+	ServedCount    int
 }
 
-func NewDevice(id int, meanServiceTime float64) *Device {
+func NewDevice(id int, lambda float64) *Device {
 	return &Device{
-		ID:              id,
-		MeanServiceTime: meanServiceTime,
-		IsBusy:          false,
-		CurrentApp:      nil,
-		ServiceEndTime:  0,
-		TotalBusyTime:   0,
-		ServedCount:     0,
+		ID:             id,
+		Lambda:         lambda,
+		IsBusy:         false,
+		CurrentApp:     nil,
+		ServiceEndTime: 0,
+		TotalBusyTime:  0,
+		ServedCount:    0,
 	}
 }
 
@@ -37,7 +37,7 @@ func (d *Device) Assign(app *source.Application, currentTime float64) float64 {
 	d.IsBusy = true
 	d.CurrentApp = app
 	d.ServedCount++
-	serviceTime := -d.MeanServiceTime * math.Log(rand.Float64())
+	serviceTime := -math.Log(rand.Float64()) / d.Lambda
 	d.ServiceEndTime = currentTime + serviceTime
 	d.TotalBusyTime += serviceTime
 

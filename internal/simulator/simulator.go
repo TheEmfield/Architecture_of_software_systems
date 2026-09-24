@@ -3,6 +3,7 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
+	"sort"
 
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/buffer"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/calendar"
@@ -24,19 +25,23 @@ type Simulator struct {
 }
 
 func NewSimulator(cfg *config.Simulator) *Simulator {
-	var sources map[int]*source.Source
-	for i := range cfg.NumSources {
-		sources[i] = source.NewSource(i, cfg.MinInterval, cfg.MaxInterval, 0.0) //пока 0.0, дальше с определенного периода времени
+	sources := make(map[int]*source.Source)
+	for i := 1; i <= cfg.NumSources; i++ {
+		src := source.NewSource(i, cfg.MinInterval, cfg.MaxInterval, 0.0) //пока 0.0, потом из конфига
+		sources[i] = src
 	}
 
-	var devices map[int]*device.Device
-	for i := range cfg.NumSources {
-		devices[i] = device.NewDevice(i, cfg.MeanServiceTime)
+	devices := make(map[int]*device.Device)
+	deviceList := make([]*device.Device, 0, cfg.NumDevices)
+
+	for i := 1; i <= cfg.NumDevices; i++ {
+		dev := device.NewDevice(i, cfg.Lambda)
+		devices[i] = dev
+		deviceList = append(deviceList, dev)
 	}
 
 	buf := buffer.NewBuffer(cfg.BufferCapacity)
-
-	staging := dispatcher.NewStagingDispatcher(buf, devices)
+	staging := dispatcher.NewStagingDispatcher(buf, deviceList)
 	fetch := dispatcher.NewFetchDispatcher(buf)
 
 	cal := make(calendar.EventCalendar, 0)
@@ -50,7 +55,7 @@ func NewSimulator(cfg *config.Simulator) *Simulator {
 
 	return &Simulator{
 		CurrentTime:       0.0,
-		EndTime:           100.0,
+		EndTime:           cfg.MaxSimulationTime,
 		Calendar:          cal,
 		Sources:           sources,
 		Devices:           devices,
@@ -68,23 +73,24 @@ func (s *Simulator) Step() bool {
 	event := heap.Pop(&s.Calendar).(*calendar.Event)
 	s.CurrentTime = event.Time
 
-	fmt.Printf("\n[Время: %.2f] Событие: ", s.CurrentTime)
+	fmt.Printf("[Time: %.2f] Event: ", s.CurrentTime)
 
 	if event.Type == calendar.EventArrival {
-		fmt.Printf("ПРИХОД заявки от источника %d\n", event.SourceID)
+		fmt.Printf("ARRIVAL from Source %d\n", event.SourceID)
 		s.handleArrival(event)
 	} else if event.Type == calendar.EventDeparture {
-		fmt.Printf("ОСВОБОЖДЕНИЕ прибора %d\n", event.DeviceID)
+		fmt.Printf("DEPARTURE from Device %d\n", event.DeviceID)
 		s.handleDeparture(event)
 	}
 
+	s.PrintState()
 	return true
 }
 
 func (s *Simulator) handleArrival(event *calendar.Event) {
 	src := s.Sources[event.SourceID]
-
 	app := src.GetNextApplication()
+
 	heap.Push(&s.Calendar, &calendar.Event{
 		Time: src.GetNextEventTime(), Type: calendar.EventArrival, SourceID: src.GetID(),
 	})
@@ -93,38 +99,88 @@ func (s *Simulator) handleArrival(event *calendar.Event) {
 
 	if isRefused {
 		src.RecordRefusal()
-		fmt.Printf("  -> ОТКАЗ заявке %d (буфер полон)\n", app.ID)
+		fmt.Printf("  -> REFUSED (buffer full)\n")
 	} else if depEvent != nil {
 		heap.Push(&s.Calendar, depEvent)
-		fmt.Printf("  -> Заявка %d пошла сразу на прибор %d\n", app.ID, depEvent.DeviceID)
+		fmt.Printf("  -> Sent to Device %d\n", depEvent.DeviceID)
 	} else {
-		fmt.Printf("  -> Заявка %d помещена в буфер\n", app.ID)
+		fmt.Printf("  -> Placed in buffer\n")
 	}
 }
 
 func (s *Simulator) handleDeparture(event *calendar.Event) {
 	dev := s.Devices[event.DeviceID]
-
 	finishedApp := dev.Release()
-	fmt.Printf("  -> Прибор %d завершил работу над заявкой %d\n", dev.ID, finishedApp.ID)
+	fmt.Printf("  -> Device %d finished Application %d\n", dev.ID, finishedApp.ID)
 
 	depEvent := s.FetchDispatcher.ProcessDeparture(dev, s.CurrentTime)
-
 	if depEvent != nil {
 		heap.Push(&s.Calendar, depEvent)
-		fmt.Printf("  -> Прибор %d сразу взял новую заявку из буфера\n", dev.ID)
+		fmt.Printf("  -> Device %d took new application from buffer\n", dev.ID)
 	} else {
-		fmt.Printf("  -> Прибор %d перешел в режим простоя (буфер пуст)\n", dev.ID)
+		fmt.Printf("  -> Device %d is now idle\n", dev.ID)
 	}
 }
 
-func (s *Simulator) PrintStats() {
-	fmt.Println("\n=== СТАТИСТИКА ===")
-	for _, src := range s.Sources {
+func (s *Simulator) PrintState() {
+	fmt.Println("Event Calendar:")
+	if s.Calendar.Len() == 0 {
+		fmt.Println("  (empty)")
+	} else {
+		eventsCopy := make([]*calendar.Event, len(s.Calendar))
+		copy(eventsCopy, s.Calendar)
+
+		sort.Slice(eventsCopy, func(i, j int) bool {
+			return eventsCopy[i].Time < eventsCopy[j].Time
+		})
+
+		for _, ev := range eventsCopy {
+			if ev.Type == calendar.EventArrival {
+				fmt.Printf("  Time: %.2f | Type: ARRIVAL   | Source: %d\n", ev.Time, ev.SourceID)
+			} else {
+				fmt.Printf("  Time: %.2f | Type: DEPARTURE | Device: %d\n", ev.Time, ev.DeviceID)
+			}
+		}
+	}
+
+	fmt.Println("Sources:")
+	for i := 1; i <= len(s.Sources); i++ {
+		src := s.Sources[i]
 		gen, ref := src.GetStats()
-		fmt.Printf("Источник %d: Сгенерировано: %d, Отказов: %d\n", src.GetID(), gen, ref)
+		fmt.Printf("  Source %d: Next at %.2f, Generated: %d, Refused: %d\n", src.GetID(), src.GetNextEventTime(), gen, ref)
 	}
-	for _, dev := range s.Devices {
-		fmt.Printf("Прибор %d: Обслужено заявок: %d, Общее время работы: %.2f\n", dev.ID, dev.ServedCount, dev.TotalBusyTime)
+
+	fmt.Println("Buffer:")
+	for i, app := range s.Buffer.Slots {
+		if app != nil {
+			fmt.Printf("  Slot %d: App ID %d (Source %d, Arrival %.2f)\n", i+1, app.ID, app.SourceID, app.ArrivalTime)
+		} else {
+			fmt.Printf("  Slot %d: Empty\n", i+1)
+		}
 	}
+
+	fmt.Println("Devices:")
+	for i := 1; i <= len(s.Devices); i++ {
+		dev := s.Devices[i]
+		if dev.IsBusy {
+			fmt.Printf("  Device %d: BUSY (App ID %d, Ends at %.2f)\n", dev.ID, dev.CurrentApp.ID, dev.ServiceEndTime)
+		} else {
+			fmt.Printf("  Device %d: IDLE\n", dev.ID)
+		}
+	}
+	fmt.Println("--------------------")
+}
+
+func (s *Simulator) PrintFinalStats() {
+	fmt.Println("\n=== FINAL STATISTICS ===")
+	for i := 1; i <= len(s.Sources); i++ {
+		src := s.Sources[i]
+		gen, ref := src.GetStats()
+		fmt.Printf("Source %d: Generated: %d, Refused: %d\n", src.GetID(), gen, ref)
+	}
+	for i := 1; i <= len(s.Devices); i++ {
+		dev := s.Devices[i]
+		fmt.Printf("Device %d: Served: %d, Total Busy Time: %.2f\n", dev.ID, dev.ServedCount, dev.TotalBusyTime)
+	}
+	fmt.Println("========================")
 }

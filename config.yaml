@@ -3,9 +3,10 @@ logger:
   format: text
 
 simulator:
-  num_devices: 4
-  num_sources: 5
-  buffer_capacity: 3
+  num_devices: 2
+  num_sources: 2
+  buffer_capacity: 5
   min_interval: 0.0
   max_interval: 1.0
-  mean_service_time: 3.5
+  lambda: 3.0
+  max_simulation_time: 20.0
