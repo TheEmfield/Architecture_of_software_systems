@@ -6,6 +6,7 @@ import (
 
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/buffer"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/calendar"
+	"github.com/TheEmfield/Architecture_of_software_systems/internal/config"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/device"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/dispatcher"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/source"
@@ -22,34 +23,37 @@ type Simulator struct {
 	FetchDispatcher   *dispatcher.FetchDispatcher
 }
 
-func NewSimulator() *Simulator {
-	src1 := source.NewSource(1, 2.0, 5.0, 0.0)
-	src2 := source.NewSource(2, 3.0, 6.0, 0.0)
+func NewSimulator(cfg *config.Simulator) *Simulator {
+	var sources map[int]*source.Source
+	for i := range cfg.NumSources {
+		sources[i] = source.NewSource(i, cfg.MinInterval, cfg.MaxInterval, 0.0) //пока 0.0, дальше с определенного периода времени
+	}
 
-	dev1 := device.NewDevice(1, 4.0)
-	dev2 := device.NewDevice(2, 4.0)
+	var devices map[int]*device.Device
+	for i := range cfg.NumSources {
+		devices[i] = device.NewDevice(i, cfg.MeanServiceTime)
+	}
 
-	buf := buffer.NewBuffer(5)
+	buf := buffer.NewBuffer(cfg.BufferCapacity)
 
-	staging := dispatcher.NewStagingDispatcher(buf, []*device.Device{dev1, dev2})
+	staging := dispatcher.NewStagingDispatcher(buf, devices)
 	fetch := dispatcher.NewFetchDispatcher(buf)
 
 	cal := make(calendar.EventCalendar, 0)
 	heap.Init(&cal)
 
-	heap.Push(&cal, &calendar.Event{
-		Time: src1.GetNextEventTime(), Type: calendar.EventArrival, SourceID: src1.GetID(),
-	})
-	heap.Push(&cal, &calendar.Event{
-		Time: src2.GetNextEventTime(), Type: calendar.EventArrival, SourceID: src2.GetID(),
-	})
+	for _, src := range sources {
+		heap.Push(&cal, &calendar.Event{
+			Time: src.GetNextEventTime(), Type: calendar.EventArrival, SourceID: src.GetID(),
+		})
+	}
 
 	return &Simulator{
 		CurrentTime:       0.0,
 		EndTime:           100.0,
 		Calendar:          cal,
-		Sources:           map[int]*source.Source{1: src1, 2: src2},
-		Devices:           map[int]*device.Device{1: dev1, 2: dev2},
+		Sources:           sources,
+		Devices:           devices,
 		Buffer:            buf,
 		StagingDispatcher: staging,
 		FetchDispatcher:   fetch,
@@ -88,7 +92,7 @@ func (s *Simulator) handleArrival(event *calendar.Event) {
 	depEvent, isRefused := s.StagingDispatcher.ProcessArrival(app, s.CurrentTime)
 
 	if isRefused {
-		src.RecordRefusal() // Д10О5: Отказ вновь пришедшей
+		src.RecordRefusal()
 		fmt.Printf("  -> ОТКАЗ заявке %d (буфер полон)\n", app.ID)
 	} else if depEvent != nil {
 		heap.Push(&s.Calendar, depEvent)
