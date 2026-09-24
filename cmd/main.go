@@ -45,7 +45,7 @@ func main() {
 
 		input = strings.TrimSpace(input)
 
-		if input == "exit" || input == "q" {
+		if input == "q" {
 			fmt.Println("End of simulation")
 			break
 		}
