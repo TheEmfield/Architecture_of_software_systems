@@ -31,34 +31,54 @@ func main() {
 	_ = logger //пока не использую логгер
 
 	sim := simulator.NewSimulator(&cfg.Simulator)
+
+	run(sim)
+}
+
+func run(sim *simulator.Simulator) {
+	fmt.Println("Choose mode: 1) Step 2) Auto")
+
 	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
 
-	fmt.Println("Simulation initialized.")
-	sim.PrintState()
+	switch input {
+	case "1":
+		sim.PrintState()
+		for {
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("\nExit")
+				break
+			}
 
-	for {
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("\nExit")
-			break
-		}
+			input = strings.TrimSpace(input)
 
-		input = strings.TrimSpace(input)
-
-		if input == "q" {
-			fmt.Println("End of simulation")
-			break
-		}
-
-		if input == "" {
-			if !sim.Step() {
+			if input == "q" {
 				fmt.Println("End of simulation")
 				break
 			}
-		} else {
-			fmt.Println("Invalid input")
+
+			if input == "" {
+				if !sim.Step() {
+					fmt.Println("End of simulation")
+					break
+				}
+			} else {
+				fmt.Println("Invalid input")
+			}
 		}
+
+		sim.PrintFinalStats()
+
+	case "2":
+		sim.PrintState()
+		for sim.Step() {
+		}
+		sim.PrintFinalStats()
+
+	default:
+		fmt.Println("Invalid input")
 	}
 
-	sim.PrintFinalStats()
 }

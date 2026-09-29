@@ -43,6 +43,7 @@ func (s *StagingDispatcher) ProcessArrival(app *source.Application, currentTime 
 
 	slot := s.Buffer.FindFirstFreeSlot()
 	if slot != -1 {
+		app.BufferEntryTime = currentTime
 		s.Buffer.Slots[slot] = app
 		return nil, false
 	}

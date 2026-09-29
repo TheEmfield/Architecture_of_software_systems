@@ -13,6 +13,13 @@ import (
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/source"
 )
 
+type SourceStats struct {
+	Generated int
+	Refused   int
+	Tbp       []float64
+	Tobsl     []float64
+}
+
 type Simulator struct {
 	CurrentTime       float64
 	EndTime           float64
@@ -22,6 +29,7 @@ type Simulator struct {
 	Buffer            *buffer.Buffer
 	StagingDispatcher *dispatcher.StagingDispatcher
 	FetchDispatcher   *dispatcher.FetchDispatcher
+	Stats             map[int]*SourceStats
 }
 
 func NewSimulator(cfg *config.Simulator) *Simulator {
@@ -53,6 +61,8 @@ func NewSimulator(cfg *config.Simulator) *Simulator {
 		})
 	}
 
+	stats := make(map[int]*SourceStats)
+
 	return &Simulator{
 		CurrentTime:       0.0,
 		EndTime:           cfg.MaxSimulationTime,
@@ -62,6 +72,7 @@ func NewSimulator(cfg *config.Simulator) *Simulator {
 		Buffer:            buf,
 		StagingDispatcher: staging,
 		FetchDispatcher:   fetch,
+		Stats:             stats,
 	}
 }
 
@@ -112,6 +123,20 @@ func (s *Simulator) handleDeparture(event *calendar.Event) {
 	dev := s.Devices[event.DeviceID]
 	finishedApp := dev.Release()
 	fmt.Printf("  -> Device %d finished Application %d\n", dev.ID, finishedApp.ID)
+
+	if finishedApp != nil {
+		tobsl := s.CurrentTime - finishedApp.ServiceStartTime
+		tbp := 0.0
+		if finishedApp.BufferEntryTime >= 0 {
+			tbp = finishedApp.ServiceStartTime - finishedApp.BufferEntryTime
+		}
+
+		if s.Stats[finishedApp.SourceID] == nil {
+			s.Stats[finishedApp.SourceID] = &SourceStats{}
+		}
+		s.Stats[finishedApp.SourceID].Tobsl = append(s.Stats[finishedApp.SourceID].Tobsl, tobsl)
+		s.Stats[finishedApp.SourceID].Tbp = append(s.Stats[finishedApp.SourceID].Tbp, tbp)
+	}
 
 	depEvent := s.FetchDispatcher.ProcessDeparture(dev, s.CurrentTime)
 	if depEvent != nil {
@@ -172,15 +197,56 @@ func (s *Simulator) PrintState() {
 }
 
 func (s *Simulator) PrintFinalStats() {
-	fmt.Println("\n=== FINAL STATISTICS ===")
+	fmt.Println("\n=== TABLE 1: Source Characteristics ===")
+	fmt.Printf("%-5s | %-8s | %-6s | %-8s | %-8s | %-8s | %-8s | %-8s | %-8s\n",
+		"Src", "Gen", "Ref", "P_otk", "T_preb", "T_bp", "T_obsl", "D_bp", "D_obsl")
+	fmt.Println("-------------------------------------------------------------------")
+
 	for i := 1; i <= len(s.Sources); i++ {
 		src := s.Sources[i]
 		gen, ref := src.GetStats()
-		fmt.Printf("Source %d: Generated: %d, Refused: %d\n", src.GetID(), gen, ref)
+
+		pOtk := 0.0
+		if gen > 0 {
+			pOtk = float64(ref) / float64(gen)
+		}
+
+		stats := s.Stats[i]
+		tbpAvg, tbpVar := calcMeanVar(stats.Tbp)
+		tobslAvg, tobslVar := calcMeanVar(stats.Tobsl)
+		tprebAvg := tbpAvg + tobslAvg
+
+		fmt.Printf("%-5d | %-8d | %-6d | %-8.4f | %-8.4f | %-8.4f | %-8.4f | %-8.4f | %-8.4f\n",
+			i, gen, ref, pOtk, tprebAvg, tbpAvg, tobslAvg, tbpVar, tobslVar)
 	}
+
+	fmt.Println("\n=== TABLE 2: Device Characteristics ===")
+	fmt.Printf("%-5s | %-15s | %-15s\n", "Dev", "Served", "K_isp")
+	fmt.Println("-----------------------------------------")
 	for i := 1; i <= len(s.Devices); i++ {
 		dev := s.Devices[i]
-		fmt.Printf("Device %d: Served: %d, Total Busy Time: %.2f\n", dev.ID, dev.ServedCount, dev.TotalBusyTime)
+		kIsp := 0.0
+		if s.CurrentTime > 0 {
+			kIsp = dev.TotalBusyTime / s.CurrentTime
+		}
+		fmt.Printf("%-5d | %-15d | %-15.4f\n", i, dev.ServedCount, kIsp)
 	}
-	fmt.Println("========================")
+	fmt.Println("=========================================")
+}
+
+func calcMeanVar(data []float64) (mean, variance float64) {
+	if len(data) == 0 {
+		return 0, 0
+	}
+	var sum, sumSq float64
+	for _, v := range data {
+		sum += v
+		sumSq += v * v
+	}
+	mean = sum / float64(len(data))
+	variance = (sumSq / float64(len(data))) - (mean * mean)
+	if variance < 0 {
+		variance = 0
+	}
+	return mean, variance
 }

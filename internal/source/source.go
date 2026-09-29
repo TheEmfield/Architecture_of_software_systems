@@ -3,16 +3,19 @@ package source
 import "math/rand/v2"
 
 type Application struct {
-	ID          int
-	SourceID    int
-	ArrivalTime float64
+	ID               int
+	SourceID         int
+	ArrivalTime      float64
+	BufferEntryTime  float64
+	ServiceStartTime float64
 }
 
 func NewApplication(id, sourceID int, arrivalTime float64) *Application {
 	return &Application{
-		ID:          id,
-		SourceID:    sourceID,
-		ArrivalTime: arrivalTime,
+		ID:              id,
+		SourceID:        sourceID,
+		ArrivalTime:     arrivalTime,
+		BufferEntryTime: -1.0,
 	}
 }
 

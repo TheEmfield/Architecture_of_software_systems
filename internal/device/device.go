@@ -37,6 +37,7 @@ func (d *Device) Assign(app *source.Application, currentTime float64) float64 {
 	d.IsBusy = true
 	d.CurrentApp = app
 	d.ServedCount++
+	app.ServiceStartTime = currentTime
 	serviceTime := -math.Log(rand.Float64()) / d.Lambda
 	d.ServiceEndTime = currentTime + serviceTime
 	d.TotalBusyTime += serviceTime
