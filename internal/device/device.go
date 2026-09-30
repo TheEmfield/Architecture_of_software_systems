@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 
+	"github.com/TheEmfield/Architecture_of_software_systems/internal/config"
 	"github.com/TheEmfield/Architecture_of_software_systems/internal/source"
 )
 
@@ -17,10 +18,10 @@ type Device struct {
 	ServedCount    int
 }
 
-func NewDevice(id int, lambda float64) *Device {
+func NewDevice(cfg config.Device) *Device {
 	return &Device{
-		ID:             id,
-		Lambda:         lambda,
+		ID:             cfg.Id,
+		Lambda:         cfg.Lambda,
 		IsBusy:         false,
 		CurrentApp:     nil,
 		ServiceEndTime: 0,

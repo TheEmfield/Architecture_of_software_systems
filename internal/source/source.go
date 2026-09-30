@@ -1,6 +1,10 @@
 package source
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+
+	"github.com/TheEmfield/Architecture_of_software_systems/internal/config"
+)
 
 type Application struct {
 	ID               int
@@ -28,12 +32,12 @@ type Source struct {
 	refusedCount   int
 }
 
-func NewSource(id int, minInterval, maxInterval, startTime float64) *Source {
+func NewSource(cfg config.Source) *Source {
 	return &Source{
-		id:             id,
-		minInterval:    minInterval,
-		maxInterval:    maxInterval,
-		nextEventTime:  startTime,
+		id:             cfg.Id,
+		minInterval:    cfg.MinInterval,
+		maxInterval:    cfg.MaxInterval,
+		nextEventTime:  cfg.StartTime,
 		generatedCount: 0,
 		refusedCount:   0,
 	}

@@ -34,17 +34,17 @@ type Simulator struct {
 
 func NewSimulator(cfg *config.Simulator) *Simulator {
 	sources := make(map[int]*source.Source)
-	for i := 1; i <= cfg.NumSources; i++ {
-		src := source.NewSource(i, cfg.MinInterval, cfg.MaxInterval, 0.0) //пока 0.0, потом из конфига
-		sources[i] = src
+	for i := 0; i < cfg.NumSources; i++ {
+		src := source.NewSource(cfg.Sources[i])
+		sources[cfg.Sources[i].Id] = src
 	}
 
 	devices := make(map[int]*device.Device)
 	deviceList := make([]*device.Device, 0, cfg.NumDevices)
 
-	for i := 1; i <= cfg.NumDevices; i++ {
-		dev := device.NewDevice(i, cfg.Lambda)
-		devices[i] = dev
+	for i := 0; i < cfg.NumDevices; i++ {
+		dev := device.NewDevice(cfg.Devices[i])
+		devices[cfg.Devices[i].Id] = dev
 		deviceList = append(deviceList, dev)
 	}
 
@@ -197,10 +197,9 @@ func (s *Simulator) PrintState() {
 }
 
 func (s *Simulator) PrintFinalStats() {
-	fmt.Println("\n=== TABLE 1: Source Characteristics ===")
-	fmt.Printf("%-5s | %-8s | %-6s | %-8s | %-8s | %-8s | %-8s | %-8s | %-8s\n",
-		"Src", "Gen", "Ref", "P_otk", "T_preb", "T_bp", "T_obsl", "D_bp", "D_obsl")
-	fmt.Println("-------------------------------------------------------------------")
+	fmt.Println("\nТАБЛИЦА 1: Характеристики источников ВС")
+	fmt.Printf("%-3s | %-8s | %-8s | %-8s | %-10s | %-10s | %-10s | %-8s | %-8s\n",
+		"№", "Заявок", "Отказов", "P_отк", "T_преб", "T_БП", "T_обсл", "D_БП", "D_обсл")
 
 	for i := 1; i <= len(s.Sources); i++ {
 		src := s.Sources[i]
@@ -211,27 +210,34 @@ func (s *Simulator) PrintFinalStats() {
 			pOtk = float64(ref) / float64(gen)
 		}
 
-		stats := s.Stats[i]
-		tbpAvg, tbpVar := calcMeanVar(stats.Tbp)
-		tobslAvg, tobslVar := calcMeanVar(stats.Tobsl)
-		tprebAvg := tbpAvg + tobslAvg
+		tbpAvg, tbpVar := 0.0, 0.0
+		tobslAvg, tobslVar := 0.0, 0.0
+		tprebAvg := 0.0
 
-		fmt.Printf("%-5d | %-8d | %-6d | %-8.4f | %-8.4f | %-8.4f | %-8.4f | %-8.4f | %-8.4f\n",
+		if stats, ok := s.Stats[i]; ok && stats != nil {
+			tbpAvg, tbpVar = calcMeanVar(stats.Tbp)
+			tobslAvg, tobslVar = calcMeanVar(stats.Tobsl)
+			tprebAvg = tbpAvg + tobslAvg
+		}
+
+		fmt.Printf("%-3d | %-8d | %-8d | %-8.4f | %-10.4f | %-10.4f | %-10.4f | %-8.4f | %-8.4f\n",
 			i, gen, ref, pOtk, tprebAvg, tbpAvg, tobslAvg, tbpVar, tobslVar)
 	}
 
-	fmt.Println("\n=== TABLE 2: Device Characteristics ===")
-	fmt.Printf("%-5s | %-15s | %-15s\n", "Dev", "Served", "K_isp")
-	fmt.Println("-----------------------------------------")
+	fmt.Println("\nТАБЛИЦА 2: Характеристики приборов ВС")
+	fmt.Printf("%-3s | %-12s | %-15s\n", "№", "Обслужено", "K_исп")
+
 	for i := 1; i <= len(s.Devices); i++ {
 		dev := s.Devices[i]
 		kIsp := 0.0
 		if s.CurrentTime > 0 {
 			kIsp = dev.TotalBusyTime / s.CurrentTime
 		}
-		fmt.Printf("%-5d | %-15d | %-15.4f\n", i, dev.ServedCount, kIsp)
+		if kIsp > 1.0 {
+			kIsp = 1.0
+		}
+		fmt.Printf("%-3d | %-12d | %-15.4f\n", i, dev.ServedCount, kIsp)
 	}
-	fmt.Println("=========================================")
 }
 
 func calcMeanVar(data []float64) (mean, variance float64) {

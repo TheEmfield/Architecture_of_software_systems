@@ -11,11 +11,22 @@ type Logger struct {
 }
 
 type Simulator struct {
-	NumDevices        int     `yaml:"num_devices"`
-	NumSources        int     `yaml:"num_sources"`
-	BufferCapacity    int     `yaml:"buffer_capacity"`
-	MinInterval       float64 `yaml:"min_interval"`
-	MaxInterval       float64 `yaml:"max_interval"`
-	Lambda            float64 `yaml:"lambda"`
-	MaxSimulationTime float64 `yaml:"max_simulation_time"`
+	NumDevices        int      `yaml:"num_devices"`
+	NumSources        int      `yaml:"num_sources"`
+	BufferCapacity    int      `yaml:"buffer_capacity"`
+	Sources           []Source `yaml:"sources"`
+	Devices           []Device `yaml:"devices"`
+	MaxSimulationTime float64  `yaml:"max_simulation_time"`
+}
+
+type Source struct {
+	Id          int     `yaml:"id"`
+	MinInterval float64 `yaml:"min_interval"`
+	MaxInterval float64 `yaml:"max_interval"`
+	StartTime   float64 `yaml:"start_time"`
+}
+
+type Device struct {
+	Id     int     `yaml:"id"`
+	Lambda float64 `yaml:"lambda"`
 }
